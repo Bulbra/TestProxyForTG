@@ -27,11 +27,12 @@ async def load_proxies() -> list[str]:
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(PROXY_LIST_URL)
         r.raise_for_status()
+        data = r.json()
 
     proxies = []
 
-    for line in r.text.splitlines():
-        p = line.strip()
+    for prox in data:
+        p = prox["proxy"].strip()
 
         if not p or p.startswith("#"):
             continue
