@@ -2,9 +2,12 @@ import asyncio
 import logging
 import os
 import time
-
+from pprint import  pp
 import httpx
 from dotenv import load_dotenv
+
+from typing_extensions import Annotated
+import typer
 
 load_dotenv()
 
@@ -12,8 +15,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 URL = f"https://api.telegram.org/bot{TOKEN}/getMe"
 PROXY_LIST_URL = os.getenv("PROXY_LIST_URL")
 
-TIMEOUT = 5
-CONCURRENCY = 100
+app = typer.Typer()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,23 +43,23 @@ async def load_proxies() -> list[str]:
             p = "http://" + p
 
         proxies.append(p)
-
+    pp(proxies)
     return proxies
 
 
-def make_client(proxy):
+def make_client(proxy, timeout: int):
     return httpx.AsyncClient(
         proxy=proxy,
-        timeout=TIMEOUT,
+        timeout=timeout,
         verify=False,
     )
 
 
-async def check(proxy: str, idx: int):
+async def check(proxy: str, idx: int, timeout: int):
     started = time.perf_counter()
 
     try:
-        async with make_client(proxy) as client:
+        async with make_client(proxy, timeout) as client:
             response = await client.get(URL)
 
         if response.status_code != 200:
@@ -85,8 +87,8 @@ async def check(proxy: str, idx: int):
         return
 
 
-async def run(proxies: list[str]):
-    sem = asyncio.Semaphore(CONCURRENCY)
+async def run(proxies: list[str], concurrency: int, timeout:int):
+    sem = asyncio.Semaphore(concurrency)
 
     total = len(proxies)
     done = 0
@@ -96,7 +98,7 @@ async def run(proxies: list[str]):
 
     async def worker(i, p):
         async with sem:
-            return await check(p, i)
+            return await asyncio.run(check(p, i, timeout))
 
     tasks = [
         asyncio.create_task(worker(i, p))
@@ -119,13 +121,14 @@ async def run(proxies: list[str]):
 
     return ok
 
-
-async def main():
-    proxies = await load_proxies()
+@app.command()
+def start(timeout: Annotated[int, typer.Argument(help="таймаут запроса в секундах")] = 5,
+                concurrency: Annotated[int, typer.Argument(help="количество одновременных проверок")] = 100):
+    proxies = asyncio.run(load_proxies())
 
     logger.info(f"loaded: {len(proxies)}")
 
-    res = await run(proxies)
+    res = asyncio.run(run(proxies, concurrency, timeout))
 
     with open("working_proxies.txt", "w", encoding="utf-8") as f:
         for p, _ in res:
@@ -134,5 +137,6 @@ async def main():
     logger.info(f"working: {len(res)}")
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+
+if __name__ == '__main__':
+    app()
