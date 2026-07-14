@@ -12,9 +12,9 @@ import typer
 load_dotenv()
 # https://api.telegram.org/bot{TOKEN}/getMe
 TOKEN = os.getenv("BOT_TOKEN")
-url = f"https://api.telegram.org/bot{TOKEN}/getMe"
-concurrency = 100
-timeout = 5
+my_url = f"https://api.telegram.org/bot{TOKEN}/getMe"
+my_concurrency = 100
+my_timeout = 5
 PROXY_LIST_URL = os.getenv("PROXY_LIST_URL")
 
 app = typer.Typer()
@@ -49,19 +49,19 @@ async def load_proxies() -> list[str]:
     return proxies
 
 
-def make_client(proxy):
+def make_client(proxy, timeout):
     return httpx.AsyncClient(
-        proxies=proxy,
+        proxy=proxy,
         timeout=timeout,
         verify=False,
     )
 
 
-async def check(proxy: str, idx: int):
+async def check(proxy: str, idx: int, timeout: int, url:str):
     started = time.perf_counter()
 
     try:
-        async with make_client(proxy) as client:
+        async with make_client(proxy, timeout) as client:
             response = await client.get(url)
 
         if response.status_code != 200:
@@ -89,18 +89,18 @@ async def check(proxy: str, idx: int):
         return
 
 
-async def run(proxies: list[str]):
+async def run(proxies: list[str], concurrency, timeout, url):
     sem = asyncio.Semaphore(concurrency)
 
     total = len(proxies)
     done = 0
     ok = []
-    speeds = []
+
     t0 = time.perf_counter()
 
     async def worker(i, p):
         async with sem:
-            return await check(p, i)
+            return await check(p, i, timeout, url)
 
     tasks = [
         asyncio.create_task(worker(i, p))
@@ -128,10 +128,10 @@ if __name__ == '__main__':
     proxies = asyncio.run(load_proxies())
 
     logger.info(f"loaded: {len(proxies)}")
-    res = asyncio.run(run(proxies))
+    res = asyncio.run(run(proxies, my_concurrency, my_timeout, my_url))
 
 
-    with open("working_proxies.txt", "w", encoding="utf-8") as f:
+    with open("../../working_proxies.txt", "w", encoding="utf-8") as f:
         for p, _ in res:
             f.write(p + "\n")
     logger.info(f"working: {len(res)}")
