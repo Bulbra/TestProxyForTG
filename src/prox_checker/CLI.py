@@ -25,9 +25,10 @@ logger = logging.getLogger(__name__)
 
 
 @app.command()
-def start(timeout: Annotated[int, typer.Argument(help="таймаут запроса в секундах")] = 5,
+def start(path: Annotated[str, typer.Argument(help="путь до файла с прокси. ОБЯЗАТЕЛЬНО ПОСТАВЬТЕ В КОНЦЕ НАЗВАНИЕ ФАЙЛА С .txt")], timeout: Annotated[int, typer.Argument(help="таймаут запроса в секундах")] = 5,
           concurrency: Annotated[int, typer.Argument(help="количество одновременных проверок")] = 100,
-          url: Annotated[str, typer.Argument(help="Сайт для которого вы ищете прокси")] = f"https://api.telegram.org/bot{TOKEN}/getMe"):
+          url: Annotated[str, typer.Argument(help="Сайт для которого вы ищете прокси")] = f"https://api.telegram.org/bot{TOKEN}/getMe",
+          ):
     proxies = asyncio.run(load_proxies())
 
     logger.info(f"loaded: {len(proxies)}")
@@ -35,7 +36,7 @@ def start(timeout: Annotated[int, typer.Argument(help="таймаут запро
     res = asyncio.run(run(proxies, concurrency, timeout, url))
 
 
-    with open("../../working_proxies.txt", "w", encoding="utf-8") as f:
+    with open(f"{path}", "w", encoding="utf-8") as f:
         for p, _ in res:
             f.write(p + "\n")
     logger.info(f"working: {len(res)}")
