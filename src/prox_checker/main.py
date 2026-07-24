@@ -2,18 +2,22 @@ import asyncio
 import logging
 import os
 import time
-
+from pprint import  pp
 import httpx
 from dotenv import load_dotenv
 
-load_dotenv()
+from typing_extensions import Annotated
+import typer
 
+load_dotenv()
+# https://api.telegram.org/bot{TOKEN}/getMe
 TOKEN = os.getenv("BOT_TOKEN")
-URL = f"https://api.telegram.org/bot{TOKEN}/getMe"
+my_url = f"https://api.telegram.org/bot{TOKEN}/getMe"
+my_concurrency = 100
+my_timeout = 5
 PROXY_LIST_URL = os.getenv("PROXY_LIST_URL")
 
-TIMEOUT = 5
-CONCURRENCY = 100
+app = typer.Typer()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,11 +33,12 @@ async def load_proxies() -> list[str]:
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(PROXY_LIST_URL)
         r.raise_for_status()
+        data = r.json()
 
     proxies = []
 
-    for line in r.text.splitlines():
-        p = line.strip()
+    for prox in data:
+        p = prox["proxy"].strip()
 
         if not p or p.startswith("#"):
             continue
@@ -42,24 +47,24 @@ async def load_proxies() -> list[str]:
             p = "http://" + p
 
         proxies.append(p)
-
+    pp(proxies)
     return proxies
 
 
-def make_client(proxy):
+def make_client(proxy, timeout):
     return httpx.AsyncClient(
         proxy=proxy,
-        timeout=TIMEOUT,
+        timeout=timeout,
         verify=False,
     )
 
 
-async def check(proxy: str, idx: int):
+async def check(proxy: str, idx: int, timeout: int, url:str):
     started = time.perf_counter()
 
     try:
-        async with make_client(proxy) as client:
-            response = await client.get(URL)
+        async with make_client(proxy, timeout) as client:
+            response = await client.get(url)
 
         if response.status_code != 200:
             return
@@ -86,8 +91,8 @@ async def check(proxy: str, idx: int):
         return
 
 
-async def run(proxies: list[str]):
-    sem = asyncio.Semaphore(CONCURRENCY)
+async def run(proxies: list[str], concurrency, timeout, url):
+    sem = asyncio.Semaphore(concurrency)
 
     total = len(proxies)
     done = 0
@@ -97,7 +102,7 @@ async def run(proxies: list[str]):
 
     async def worker(i, p):
         async with sem:
-            return await check(p, i)
+            return await check(p, i, timeout, url)
 
     tasks = [
         asyncio.create_task(worker(i, p))
@@ -111,7 +116,6 @@ async def run(proxies: list[str]):
 
         if res:
             ok.append(res)
-
         if done % 20 == 0 or done == total:
             dt = time.perf_counter() - t0
             speed = done / dt if dt else 0
@@ -121,19 +125,15 @@ async def run(proxies: list[str]):
     return ok
 
 
-async def main():
-    proxies = await load_proxies()
+
+if __name__ == '__main__':
+    proxies = asyncio.run(load_proxies())
 
     logger.info(f"loaded: {len(proxies)}")
+    res = asyncio.run(run(proxies, my_concurrency, my_timeout, my_url))
 
-    res = await run(proxies)
 
-    with open("working_proxies.txt", "w", encoding="utf-8") as f:
+    with open("../../working_proxies.txt", "w", encoding="utf-8") as f:
         for p, _ in res:
             f.write(p + "\n")
-
     logger.info(f"working: {len(res)}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

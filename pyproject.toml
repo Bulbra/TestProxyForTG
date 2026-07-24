@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "proxy-checker"
+version = "0.1.0"
+description = "SAHHFJASHKFAGHS"
+requires-python = ">=3.7"
+dependencies = [
+    "httpx>=0.24.0",
+    "python-dotenv>=1.0.0",
+    "typer>=0.26.8"
+]
+
+[project.scripts]
+proxy-checker = "prox_checker.CLI:start"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/prox_checker"]
