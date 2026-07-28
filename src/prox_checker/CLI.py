@@ -10,6 +10,7 @@ from typing_extensions import Annotated
 import typer
 
 
+
 load_dotenv()
 # https://api.telegram.org/bot{TOKEN}/getMe
 TOKEN = os.getenv("BOT_TOKEN")
