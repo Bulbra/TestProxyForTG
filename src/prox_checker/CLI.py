@@ -24,6 +24,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+
 @app.command()
 def start(
         path: Annotated[str, typer.Argument(help="путь до файла с прокси")],
